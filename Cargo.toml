@@ -5,4 +5,5 @@ authors = ["Ben Noordhuis <info@bnoordhuis.nl>"]
 edition = "2018"
 
 [dependencies]
+piston_window = "*"
 rusty_v8 = "*"
