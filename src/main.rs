@@ -1,7 +1,17 @@
+extern crate piston_window;
 extern crate rusty_v8 as v8;
 
+use piston_window::Context as PistonContext;
+use piston_window::G2d;
+use piston_window::PistonWindow;
+use piston_window::WindowSettings;
+use std::cell::RefCell;
+use std::convert::TryFrom;
+use std::env;
+use std::fs;
 use v8::Context;
 use v8::ContextScope;
+use v8::Function;
 use v8::FunctionCallback;
 use v8::FunctionCallbackArguments;
 use v8::FunctionTemplate;
@@ -16,11 +26,14 @@ use v8::TryCatch;
 use v8::Value;
 use v8::V8;
 
+type Command = Box<dyn FnOnce(PistonContext, &mut G2d)>;
+
+thread_local!(static COMMANDS: RefCell<Vec<Command>> = RefCell::new(vec![]));
+
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = env::args().collect();
     let filename = &args[1];
-    let source =
-        std::fs::read_to_string(filename).expect("can't read source file");
+    let source = fs::read_to_string(filename).expect("can't read source file");
 
     V8::initialize_platform(v8::new_default_platform().unwrap());
     V8::initialize();
@@ -35,11 +48,8 @@ fn main() {
     // Setting the "console" property through the global template doesn't work...
     let console_string = v8::String::new(scope, "console").unwrap();
     let console_object = console_object_template.new_instance(scope).unwrap();
-    context.global(scope).set(
-        scope,
-        console_string.into(),
-        console_object.into(),
-    );
+    let global = context.global(scope);
+    global.set(scope, console_string.into(), console_object.into());
 
     let scope = &mut TryCatch::new(scope);
     let result = eval_in_context(scope, &source);
@@ -48,6 +58,33 @@ fn main() {
         eprintln!("{}", to_string_or(scope, result, "Uncaught exception"));
     } else if let Some(exception) = scope.exception() {
         eprintln!("{}", to_string_or(scope, exception, "Uncaught exception"));
+    }
+
+    let mut window: PistonWindow = WindowSettings::new("jove", [800, 600])
+        .exit_on_esc(true)
+        .build()
+        .unwrap();
+
+    let draw_string = v8::String::new(scope, "draw").unwrap();
+
+    while let Some(event) = window.next() {
+        if let Some(draw) = global.get(scope, draw_string.into()) {
+            if let Ok(draw) = Local::<Function>::try_from(draw) {
+                let scope = &mut HandleScope::new(scope);
+                if draw.call(scope, global.into(), &[]).is_none() {
+                    // TODO(bnoordhuis) Log exceptions.
+                }
+            }
+        }
+
+        window.draw_2d(&event, |context, graphics, _| {
+            COMMANDS.with(|commands| {
+                let commands = commands.replace(vec![]);
+                for command in commands {
+                    command(context, graphics);
+                }
+            });
+        });
     }
 }
 
@@ -64,7 +101,13 @@ fn make_global_object_template<'s>(
     scope: &mut HandleScope<'s, ()>,
 ) -> Local<'s, ObjectTemplate> {
     let global_object_template = ObjectTemplate::new(scope);
-    add_method(scope, global_object_template, "print", console_log_callback);
+    add_method(scope, global_object_template, "clear", clear_callback);
+    add_method(
+        scope,
+        global_object_template,
+        "rectangle",
+        rectangle_callback,
+    );
     global_object_template
 }
 
@@ -118,4 +161,44 @@ fn console_log_callback(
         print!("{}", arg);
     }
     println!();
+}
+
+fn clear_callback(
+    scope: &mut HandleScope,
+    args: FunctionCallbackArguments,
+    _: ReturnValue,
+) {
+    let r = args.get(0).number_value(scope).unwrap_or(0f64) as f32;
+    let g = args.get(1).number_value(scope).unwrap_or(0f64) as f32;
+    let b = args.get(2).number_value(scope).unwrap_or(0f64) as f32;
+    let a = args.get(3).number_value(scope).unwrap_or(0f64) as f32;
+    let color: [f32; 4] = [r, g, b, a];
+    COMMANDS.with(|commands| {
+        commands.borrow_mut().push(Box::new(move |_, gfx| {
+            piston_window::clear(color, gfx);
+        }));
+    });
+}
+
+#[allow(clippy::many_single_char_names)]
+fn rectangle_callback(
+    scope: &mut HandleScope,
+    args: FunctionCallbackArguments,
+    _: ReturnValue,
+) {
+    let r = args.get(0).number_value(scope).unwrap_or(0f64) as f32;
+    let g = args.get(1).number_value(scope).unwrap_or(0f64) as f32;
+    let b = args.get(2).number_value(scope).unwrap_or(0f64) as f32;
+    let a = args.get(3).number_value(scope).unwrap_or(0f64) as f32;
+    let x = args.get(4).number_value(scope).unwrap_or(0f64);
+    let y = args.get(5).number_value(scope).unwrap_or(0f64);
+    let w = args.get(6).number_value(scope).unwrap_or(0f64);
+    let h = args.get(7).number_value(scope).unwrap_or(0f64);
+    let color: [f32; 4] = [r, g, b, a];
+    let coords: [f64; 4] = [x, y, w, h];
+    COMMANDS.with(|commands| {
+        commands.borrow_mut().push(Box::new(move |ctx, gfx| {
+            piston_window::rectangle(color, coords, ctx.transform, gfx);
+        }));
+    });
 }
