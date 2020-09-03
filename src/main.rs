@@ -67,11 +67,17 @@ fn main() {
         .build()
         .unwrap();
 
+    let idle_string = v8::String::new(scope, "idle").unwrap();
     let render_string = v8::String::new(scope, "render").unwrap();
     let update_string = v8::String::new(scope, "update").unwrap();
 
     while let Some(event) = window.next() {
         use piston_window::*;
+
+        if let Event::Loop(Loop::Idle(args)) = event {
+            let dt = Number::new(scope, args.dt);
+            call_method(scope, global, idle_string, &[dt.into()]);
+        }
 
         if let Event::Loop(Loop::Update(args)) = event {
             let dt = Number::new(scope, args.dt);
