@@ -19,6 +19,7 @@ use v8::HandleScope;
 use v8::Isolate;
 use v8::Local;
 use v8::MapFnTo;
+use v8::Object;
 use v8::ObjectTemplate;
 use v8::ReturnValue;
 use v8::Script;
@@ -69,21 +70,13 @@ fn main() {
 
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, graphics, _| {
-            if let Some(render) = global.get(scope, render_string.into()) {
-                if let Ok(render) = Local::<Function>::try_from(render) {
-                    let scope = &mut HandleScope::new(scope);
-                    if render.call(scope, global.into(), &[]).is_none() {
-                        // TODO(bnoordhuis) Log exceptions.
-                    } else {
-                        COMMANDS.with(|commands| {
-                            let commands = commands.replace(vec![]);
-                            for command in commands {
-                                command(context, graphics);
-                            }
-                        });
-                    }
+            call_method(scope, global, render_string, &[]);
+            COMMANDS.with(|commands| {
+                let commands = commands.replace(vec![]);
+                for command in commands {
+                    command(context, graphics);
                 }
-            }
+            });
         });
     }
 }
@@ -128,6 +121,22 @@ fn add_method<'s>(
     let function_template = FunctionTemplate::new(scope, callback);
     let name_string = v8::String::new(scope, name).unwrap();
     template.set(name_string.into(), function_template.into());
+}
+
+fn call_method<'s>(
+    scope: &mut HandleScope<'s>,
+    object: Local<Object>,
+    name: Local<v8::String>,
+    args: &[Local<Value>],
+) {
+    if let Some(fun) = object.get(scope, name.into()) {
+        if let Ok(fun) = Local::<Function>::try_from(fun) {
+            let scope = &mut HandleScope::new(scope);
+            if fun.call(scope, object.into(), args).is_none() {
+                // TODO(bnoordhuis) Log exceptions.
+            }
+        }
+    }
 }
 
 fn to_string<'s>(
