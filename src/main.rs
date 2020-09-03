@@ -67,7 +67,8 @@ fn main() {
         .build()
         .unwrap();
 
-    let keypress_string = v8::String::new(scope, "keypress").unwrap();
+    let keydown_string = v8::String::new(scope, "keydown").unwrap();
+    let keyup_string = v8::String::new(scope, "keyup").unwrap();
     let idle_string = v8::String::new(scope, "idle").unwrap();
     let render_string = v8::String::new(scope, "render").unwrap();
     let update_string = v8::String::new(scope, "update").unwrap();
@@ -76,10 +77,18 @@ fn main() {
         use piston_window::*;
 
         match &event {
-            Event::Input(Input::Text(s), _) => {
-                let s = v8::String::new(scope, s).unwrap();
-                call_method(scope, global, keypress_string, &[s.into()]);
-            }
+            Event::Input(Input::Button(args), _) => match args.button {
+                Button::Keyboard(key) => {
+                    let s = format!("{:?}", key); // Maybe not a good idea...
+                    let s = v8::String::new(scope, &s).unwrap();
+                    let name = match args.state {
+                        ButtonState::Press => keydown_string,
+                        ButtonState::Release => keyup_string,
+                    };
+                    call_method(scope, global, name, &[s.into()]);
+                }
+                _ => {}
+            },
             Event::Loop(Loop::Idle(args)) => {
                 let dt = Number::new(scope, args.dt);
                 call_method(scope, global, idle_string, &[dt.into()]);
