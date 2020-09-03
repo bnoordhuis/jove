@@ -19,6 +19,7 @@ use v8::HandleScope;
 use v8::Isolate;
 use v8::Local;
 use v8::MapFnTo;
+use v8::Number;
 use v8::Object;
 use v8::ObjectTemplate;
 use v8::ReturnValue;
@@ -67,8 +68,16 @@ fn main() {
         .unwrap();
 
     let render_string = v8::String::new(scope, "render").unwrap();
+    let update_string = v8::String::new(scope, "update").unwrap();
 
     while let Some(event) = window.next() {
+        use piston_window::*;
+
+        if let Event::Loop(Loop::Update(args)) = event {
+            let dt = Number::new(scope, args.dt);
+            call_method(scope, global, update_string, &[dt.into()]);
+        }
+
         window.draw_2d(&event, |context, graphics, _| {
             call_method(scope, global, render_string, &[]);
             COMMANDS.with(|commands| {
