@@ -70,6 +70,8 @@ fn main() {
     let keydown_string = v8::String::new(scope, "keydown").unwrap();
     let keyup_string = v8::String::new(scope, "keyup").unwrap();
     let idle_string = v8::String::new(scope, "idle").unwrap();
+    let mousedown_string = v8::String::new(scope, "mousedown").unwrap();
+    let mouseup_string = v8::String::new(scope, "mouseup").unwrap();
     let render_string = v8::String::new(scope, "render").unwrap();
     let update_string = v8::String::new(scope, "update").unwrap();
 
@@ -84,6 +86,15 @@ fn main() {
                     let name = match args.state {
                         ButtonState::Press => keydown_string,
                         ButtonState::Release => keyup_string,
+                    };
+                    call_method(scope, global, name, &[s.into()]);
+                }
+                Button::Mouse(button) => {
+                    let s = format!("{:?}", button); // Maybe not a good idea...
+                    let s = v8::String::new(scope, &s).unwrap();
+                    let name = match args.state {
+                        ButtonState::Press => mousedown_string,
+                        ButtonState::Release => mouseup_string,
                     };
                     call_method(scope, global, name, &[s.into()]);
                 }
