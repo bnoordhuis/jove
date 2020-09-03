@@ -68,22 +68,22 @@ fn main() {
     let draw_string = v8::String::new(scope, "draw").unwrap();
 
     while let Some(event) = window.next() {
-        if let Some(draw) = global.get(scope, draw_string.into()) {
-            if let Ok(draw) = Local::<Function>::try_from(draw) {
-                let scope = &mut HandleScope::new(scope);
-                if draw.call(scope, global.into(), &[]).is_none() {
-                    // TODO(bnoordhuis) Log exceptions.
+        window.draw_2d(&event, |context, graphics, _| {
+            if let Some(draw) = global.get(scope, draw_string.into()) {
+                if let Ok(draw) = Local::<Function>::try_from(draw) {
+                    let scope = &mut HandleScope::new(scope);
+                    if draw.call(scope, global.into(), &[]).is_none() {
+                        // TODO(bnoordhuis) Log exceptions.
+                    } else {
+                        COMMANDS.with(|commands| {
+                            let commands = commands.replace(vec![]);
+                            for command in commands {
+                                command(context, graphics);
+                            }
+                        });
+                    }
                 }
             }
-        }
-
-        window.draw_2d(&event, |context, graphics, _| {
-            COMMANDS.with(|commands| {
-                let commands = commands.replace(vec![]);
-                for command in commands {
-                    command(context, graphics);
-                }
-            });
         });
     }
 }
