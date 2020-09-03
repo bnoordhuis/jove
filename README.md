@@ -24,7 +24,7 @@ const RED = [1,0,0,1];
 
 let d = 0;
 
-function draw() {
+function render() {
     const x = 350 + 200 * Math.sin(d);
     const y = 250 + 150 * Math.cos(d);
     d = (d + .005) % 360;

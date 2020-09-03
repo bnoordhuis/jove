@@ -65,14 +65,14 @@ fn main() {
         .build()
         .unwrap();
 
-    let draw_string = v8::String::new(scope, "draw").unwrap();
+    let render_string = v8::String::new(scope, "render").unwrap();
 
     while let Some(event) = window.next() {
         window.draw_2d(&event, |context, graphics, _| {
-            if let Some(draw) = global.get(scope, draw_string.into()) {
-                if let Ok(draw) = Local::<Function>::try_from(draw) {
+            if let Some(render) = global.get(scope, render_string.into()) {
+                if let Ok(render) = Local::<Function>::try_from(render) {
                     let scope = &mut HandleScope::new(scope);
-                    if draw.call(scope, global.into(), &[]).is_none() {
+                    if render.call(scope, global.into(), &[]).is_none() {
                         // TODO(bnoordhuis) Log exceptions.
                     } else {
                         COMMANDS.with(|commands| {
