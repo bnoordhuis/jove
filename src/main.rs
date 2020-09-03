@@ -67,6 +67,7 @@ fn main() {
         .build()
         .unwrap();
 
+    let keypress_string = v8::String::new(scope, "keypress").unwrap();
     let idle_string = v8::String::new(scope, "idle").unwrap();
     let render_string = v8::String::new(scope, "render").unwrap();
     let update_string = v8::String::new(scope, "update").unwrap();
@@ -74,15 +75,21 @@ fn main() {
     while let Some(event) = window.next() {
         use piston_window::*;
 
-        if let Event::Loop(Loop::Idle(args)) = event {
-            let dt = Number::new(scope, args.dt);
-            call_method(scope, global, idle_string, &[dt.into()]);
-        }
-
-        if let Event::Loop(Loop::Update(args)) = event {
-            let dt = Number::new(scope, args.dt);
-            call_method(scope, global, update_string, &[dt.into()]);
-        }
+        match &event {
+            Event::Input(Input::Text(s), _) => {
+                let s = v8::String::new(scope, s).unwrap();
+                call_method(scope, global, keypress_string, &[s.into()]);
+            }
+            Event::Loop(Loop::Idle(args)) => {
+                let dt = Number::new(scope, args.dt);
+                call_method(scope, global, idle_string, &[dt.into()]);
+            }
+            Event::Loop(Loop::Update(args)) => {
+                let dt = Number::new(scope, args.dt);
+                call_method(scope, global, update_string, &[dt.into()]);
+            }
+            _ => {}
+        };
 
         window.draw_2d(&event, |context, graphics, _| {
             call_method(scope, global, render_string, &[]);
