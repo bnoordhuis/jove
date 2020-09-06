@@ -14,6 +14,18 @@ build
 $ cargo build  # produces target/debug/jove
 ```
 
+running
+=======
+
+```
+$ jove [options ...] <script>
+
+# example: log garbage collector activity
+$ jove --trace_gc --trace_gc_verbose script.js
+```
+
+Run `jove --help` to see a list of all options.
+
 example
 =======
 

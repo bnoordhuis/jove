@@ -34,6 +34,19 @@ thread_local!(static COMMANDS: RefCell<Vec<Command>> = RefCell::new(vec![]));
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+
+    let show_help = args
+        .iter()
+        .skip(1)
+        .take_while(|arg| arg.starts_with("--"))
+        .any(|arg| *arg == "--help");
+
+    let args = V8::set_flags_from_command_line(args);
+
+    if show_help {
+        return;
+    }
+
     let filename = &args[1];
     let source = fs::read_to_string(filename).expect("can't read source file");
 
