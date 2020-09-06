@@ -7,8 +7,10 @@ use piston_window::PistonWindow;
 use piston_window::WindowSettings;
 use std::cell::RefCell;
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::env;
 use std::fs;
+use v8::Array;
 use v8::Context;
 use v8::ContextScope;
 use v8::Function;
@@ -48,6 +50,7 @@ fn main() {
     }
 
     let filename = &args[1];
+    let args: Vec<&String> = args.iter().skip(2).collect();
     let source = fs::read_to_string(filename).expect("can't read source file");
 
     V8::initialize_platform(v8::new_default_platform().unwrap());
@@ -60,10 +63,20 @@ fn main() {
     let context = Context::new_from_template(scope, global_object_template);
     let scope = &mut ContextScope::new(scope, context);
 
+    let args_string = v8::String::new(scope, "args").unwrap();
+    let args_array = Array::new(scope, args.len().try_into().unwrap());
+    for (index, arg) in args.iter().enumerate() {
+        let arg = v8::String::new(scope, arg).unwrap();
+        let index = v8::Integer::new(scope, index.try_into().unwrap());
+        args_array.set(scope, index.into(), arg.into());
+    }
+
     // Setting the "console" property through the global template doesn't work...
     let console_string = v8::String::new(scope, "console").unwrap();
     let console_object = console_object_template.new_instance(scope).unwrap();
+
     let global = context.global(scope);
+    global.set(scope, args_string.into(), args_array.into());
     global.set(scope, console_string.into(), console_object.into());
 
     let scope = &mut TryCatch::new(scope);
