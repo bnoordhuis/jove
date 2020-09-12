@@ -13,6 +13,7 @@ use std::fs;
 use v8::Array;
 use v8::Context;
 use v8::ContextScope;
+use v8::Exception;
 use v8::Function;
 use v8::FunctionCallback;
 use v8::FunctionCallbackArguments;
@@ -210,8 +211,9 @@ fn call_method<'s>(
     if let Some(fun) = object.get(scope, name.into()) {
         if let Ok(fun) = Local::<Function>::try_from(fun) {
             let scope = &mut HandleScope::new(scope);
+            let scope = &mut TryCatch::new(scope);
             if fun.call(scope, object.into(), args).is_none() {
-                // TODO(bnoordhuis) Log exceptions.
+                print_try_catch(scope);
             }
         }
     }
@@ -238,13 +240,24 @@ fn to_string_or<'s>(
     }
 }
 
-fn with_render_state<F>(f: F)
+fn print_try_catch(try_catch: &mut TryCatch<HandleScope>) {
+    let exc = try_catch.exception().unwrap();
+    let exc = exc.to_string(try_catch).unwrap();
+    eprintln!("{}", exc.to_rust_string_lossy(try_catch));
+    // TODO(bnoordhuis) print stack trace
+}
+
+fn with_render_state<F>(scope: &mut HandleScope, f: F)
 where
     F: FnOnce(PistonContext, &mut G2d),
 {
     RENDER_STATE.with(|slot| {
         if let Some(RenderState(ctx, gfx)) = &mut *slot.borrow_mut() {
             f(*ctx, gfx);
+        } else {
+            let msg = v8::String::new(scope, "not rendering").unwrap();
+            let exc = Exception::error(scope, msg);
+            scope.throw_exception(exc);
         }
     });
 }
@@ -271,7 +284,7 @@ fn clear_callback(
     let b = args.get(2).number_value(scope).unwrap_or(0f64) as f32;
     let a = args.get(3).number_value(scope).unwrap_or(0f64) as f32;
     let color = [r, g, b, a];
-    with_render_state(|_, gfx| piston_window::clear(color, gfx));
+    with_render_state(scope, |_, gfx| piston_window::clear(color, gfx));
 }
 
 #[allow(clippy::many_single_char_names)]
@@ -290,7 +303,7 @@ fn rectangle_callback(
     let h = args.get(7).number_value(scope).unwrap_or(0f64);
     let color: [f32; 4] = [r, g, b, a];
     let coords: [f64; 4] = [x, y, w, h];
-    with_render_state(|ctx, gfx| {
+    with_render_state(scope, |ctx, gfx| {
         piston_window::rectangle(color, coords, ctx.transform, gfx)
     });
 }
