@@ -37,16 +37,24 @@ thread_local!(static COMMANDS: RefCell<Vec<Command>> = RefCell::new(vec![]));
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let show_help = args
-        .iter()
-        .skip(1)
-        .take_while(|arg| arg.starts_with("--"))
-        .any(|arg| *arg == "--help");
+    let flags = args.iter().skip(1).take_while(|arg| arg.starts_with("--"));
+
+    let help = flags.clone().any(|arg| *arg == "--help");
+    let predictable = flags.clone().any(|arg| *arg == "--predictable");
 
     let args = V8::set_flags_from_command_line(args);
 
-    if show_help {
+    if help {
         return;
+    }
+
+    if predictable {
+        V8::set_entropy_source(|buf| {
+            for c in buf {
+                *c = 42;
+            }
+            true
+        });
     }
 
     let filename = &args[1];
