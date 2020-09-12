@@ -30,9 +30,9 @@ use v8::TryCatch;
 use v8::Value;
 use v8::V8;
 
-type Command = Box<dyn FnOnce(PistonContext, &mut G2d)>;
+struct RenderState(PistonContext, &'static mut G2d<'static>);
 
-thread_local!(static COMMANDS: RefCell<Vec<Command>> = RefCell::new(vec![]));
+thread_local!(static RENDER_STATE: RefCell<Option<RenderState>> = RefCell::new(None));
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -147,12 +147,13 @@ fn main() {
         };
 
         window.draw_2d(&event, |context, graphics, _| {
-            call_method(scope, global, render_string, &[]);
-            COMMANDS.with(|commands| {
-                let commands = commands.replace(vec![]);
-                for command in commands {
-                    command(context, graphics);
-                }
+            RENDER_STATE.with(|slot| {
+                let state = RenderState(context, unsafe {
+                    std::mem::transmute(graphics)
+                });
+                slot.replace(Some(state));
+                call_method(scope, global, render_string, &[]);
+                slot.replace(None);
             });
         });
     }
@@ -237,6 +238,17 @@ fn to_string_or<'s>(
     }
 }
 
+fn with_render_state<F>(f: F)
+where
+    F: FnOnce(PistonContext, &mut G2d),
+{
+    RENDER_STATE.with(|slot| {
+        if let Some(RenderState(ctx, gfx)) = &mut *slot.borrow_mut() {
+            f(*ctx, gfx);
+        }
+    });
+}
+
 fn console_log_callback(
     scope: &mut HandleScope,
     args: FunctionCallbackArguments,
@@ -258,12 +270,8 @@ fn clear_callback(
     let g = args.get(1).number_value(scope).unwrap_or(0f64) as f32;
     let b = args.get(2).number_value(scope).unwrap_or(0f64) as f32;
     let a = args.get(3).number_value(scope).unwrap_or(0f64) as f32;
-    let color: [f32; 4] = [r, g, b, a];
-    COMMANDS.with(|commands| {
-        commands.borrow_mut().push(Box::new(move |_, gfx| {
-            piston_window::clear(color, gfx);
-        }));
-    });
+    let color = [r, g, b, a];
+    with_render_state(|_, gfx| piston_window::clear(color, gfx));
 }
 
 #[allow(clippy::many_single_char_names)]
@@ -282,9 +290,7 @@ fn rectangle_callback(
     let h = args.get(7).number_value(scope).unwrap_or(0f64);
     let color: [f32; 4] = [r, g, b, a];
     let coords: [f64; 4] = [x, y, w, h];
-    COMMANDS.with(|commands| {
-        commands.borrow_mut().push(Box::new(move |ctx, gfx| {
-            piston_window::rectangle(color, coords, ctx.transform, gfx);
-        }));
+    with_render_state(|ctx, gfx| {
+        piston_window::rectangle(color, coords, ctx.transform, gfx)
     });
 }
