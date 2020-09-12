@@ -38,9 +38,10 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     let flags = args.iter().skip(1).take_while(|arg| arg.starts_with("--"));
+    let has_arg = |name| flags.clone().any(|arg| *arg == name);
 
-    let help = flags.clone().any(|arg| *arg == "--help");
-    let predictable = flags.clone().any(|arg| *arg == "--predictable");
+    let help = has_arg("--help");
+    let predictable = has_arg("--predictable");
 
     let args = V8::set_flags_from_command_line(args);
 
